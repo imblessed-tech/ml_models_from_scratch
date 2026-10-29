@@ -27,6 +27,15 @@ class LinearRegressionFromScratch:
         self.X_mean = None
         self.X_std = None
 
+    def _check_is_fitted(self):
+        """Validates if the model parameters have been trained before inference."""
+        if self.W is None:
+            raise RuntimeError(
+                "This LinearRegressionFromScratch instance is not fitted yet. "
+                "Call 'fit' with appropriate training data before using this method."
+            )
+
+
     def _standardize_features(self, X, fit=False):
         """Computes or applies training data Z-scores to ensure stable gradients."""
         if fit:
@@ -146,12 +155,13 @@ class LinearRegressionFromScratch:
                         X_batch = X_shuffled[i : i + self.batch_size]
                         y_batch = y_shuffled[i : i + self.batch_size]
 
-                        k, _ = X_batch.shape
+                        k = X_batch.shape[0]
 
                         y_batch_pred = np.dot(X_batch, W)
                         batch_error = y_batch_pred - y_batch
+
                         _, r_grad = self._compute_penalty(W, current_m=k)
-                        dw = (2 / k) * np.dot(X_batch.T, batch_error) + r_grad
+                        dw = (2.0 / k) * np.dot(X_batch.T, batch_error) + r_grad
                         W -= self.learning_rate * dw
 
                     r_penalty, _ = self._compute_penalty(W, current_m=n_samples)
@@ -170,6 +180,7 @@ class LinearRegressionFromScratch:
         Generates predictions for new instances by applying the learned parameters.
         Automatically scales raw feature columns using the saved training memory states.
         """
+        self._check_is_fitted()
         X_scaled = self._standardize_features(X, fit=False)
 
         n_samples = X_scaled.shape[0]
@@ -191,66 +202,71 @@ class LinearRegressionFromScratch:
         return r2
     
 
-    class PolynomialRegressionFromScratch(LinearRegressionFromScratch):
-        """
-        A polynomial regression estimator that extends the base linear regression class.
-        Automatically engineers higher-degree feature transformations during fit and inference.
-        """
-        def __init__(self, 
-                    degree=2, 
-                    method='batch', 
-                    penalty=None, 
-                    learning_rate=0.01, 
-                    lmbda=1.0, 
-                    r=0.5, 
-                    batch_size=32, 
-                    n_epochs=50, 
-                    n_iterations=1000
-                    ):
-            
-            super().__init__(
-                method=method, 
-                penalty=penalty, 
-                learning_rate=learning_rate, 
-                lmbda=lmbda, 
-                r=r, 
-                batch_size=batch_size, 
-                n_epochs=n_epochs, 
-                n_iterations=n_iterations
-            )
-            self.degree = degree
-
-        def _generate_polynomial_features(self, X):
-            """
-            Transforms a raw feature matrix X into an expanded polynomial space.
-            Example: For degree=3, converts [X] into [X, X^2, X^3]
-            """
-            X = np.asarray(X, dtype=float)
-            if X.ndim == 1:
-                X = X.reshape(-1, 1)
-                
-            poly_columns = []
-            for d in range(1, self.degree + 1):
-                poly_columns.append(X ** d)
-
-            return np.column_stack(poly_columns)
-
-        def fit(self, X, y):
-            """Generates polynomial columns and fits the regression model parameters."""
-            X_poly = self._generate_polynomial_features(X)
-            super().fit(X_poly, y)
-            return self
-
-        def predict(self, X):
-            """Generates predictions by expanding new features to match trained dimensions."""
-            X_poly = self._generate_polynomial_features(X)
-            return super().predict(X_poly)
-
-        def score(self, X, y):
-            """Evaluates model performance metrics using raw un-transformed features."""
-            X_poly = self._generate_polynomial_features(X)
-            return super().score(X_poly, y)
-
-
-
+class PolynomialRegressionFromScratch(LinearRegressionFromScratch):
+    """
+    A polynomial regression estimator that extends the base linear regression class.
+    Automatically engineers higher-degree feature transformations during fit and inference.
+    """
+    def __init__(self, 
+                degree=2, 
+                method='batch', 
+                penalty=None, 
+                learning_rate=0.01, 
+                lmbda=1.0, 
+                r=0.5, 
+                batch_size=32, 
+                n_epochs=50, 
+                n_iterations=1000
+                ):
         
+        super().__init__(
+            method=method, 
+            penalty=penalty, 
+            learning_rate=learning_rate, 
+            lmbda=lmbda, 
+            r=r, 
+            batch_size=batch_size, 
+            n_epochs=n_epochs, 
+            n_iterations=n_iterations
+        )
+        self.degree = degree
+
+    def _check_is_fitted(self):
+        """Validates if the model parameters have been trained before inference."""
+        super()._check_is_fitted()
+        return self
+
+    def _generate_polynomial_features(self, X):
+        """
+        Transforms a raw feature matrix X into an expanded polynomial space.
+        Example: For degree=3, converts [X] into [X, X^2, X^3]
+        """
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+            
+        poly_columns = []
+        for d in range(1, self.degree + 1):
+            poly_columns.append(X ** d)
+
+        return np.column_stack(poly_columns)
+
+    def fit(self, X, y):
+        """Generates polynomial columns and fits the regression model parameters."""
+        X_poly = self._generate_polynomial_features(X)
+        super().fit(X_poly, y)
+        return self
+
+    def predict(self, X):
+        """Generates predictions by expanding new features to match trained dimensions."""
+        X_poly = self._generate_polynomial_features(X)
+        self._check_is_fitted()
+        return super().predict(X_poly)
+
+    def score(self, X, y):
+        """Evaluates model performance metrics using raw un-transformed features."""
+        return super().score(X, y)
+
+
+
+    
